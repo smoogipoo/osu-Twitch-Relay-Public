@@ -100,86 +100,83 @@ namespace osu_Twitch_Relay_Server
             }
             if (readlength > 0)
             {
-                sString receivedstr = Encoding.ASCII.GetString(state.buffer, 0, readlength);
-                if (receivedstr.ToString().Length > 3)
+                string[] splitstr = Regex.Split(Encoding.ASCII.GetString(state.buffer, 0, readlength), "\r\n");
+                for (int i = 0; i <= splitstr.Count() - 2; i++)
                 {
-                    string[] splitstr = Regex.Split(receivedstr.ToString(), "\r\n");
-                    for (int i = 0; i <= splitstr.Count() - 2; i++)
+                    if (splitstr[i].Length < 4)
+                        continue;
+                    sString line = splitstr[i];
+                    if (line.SubString(0, 4) == "PING")
                     {
-                        sString line = splitstr[i];
-                        if (line.SubString(0, 4) == "PING")
+                        GlobalCalls.WriteToSocket(state.client, Encoding.ASCII.GetBytes("PONG\n"));
+                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_PONG));
+                    }
+                    else
+                    {
+                        string command = line.SubString(line.nthDexOf(" ", 0) + 1, line.nthDexOf(" ", 1));
+                        string msg = "";
+                        switch (command)
                         {
-                            GlobalCalls.WriteToSocket(state.client, Encoding.ASCII.GetBytes("PONG\n"));
-                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_PONG));
-                        }
-                        else
-                        {
-                            string command = line.SubString(line.nthDexOf(" ", 0) + 1, line.nthDexOf(" ", 1));
-                            string msg = "";
-                            switch (command)
-                            {
-                                case "NOTICE":
-                                    msg = line.SubString(line.nthDexOf(":", 1) + 1);
-                                    if (msg == "Login unsuccessful")
+                            case "NOTICE":
+                                msg = line.SubString(line.nthDexOf(":", 1) + 1);
+                                if (msg == "Login unsuccessful")
+                                {
+                                    state.client.Close();
+                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_FAIL),3);
+                                    GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_FAIL.ToString()));
+                                    return;
+                                }
+                                break;
+                            case "001":
+                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_SUCCESS),1);
+                                GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_SUCCESS.ToString()));
+                                break;
+                            case "PRIVMSG":
+                                string user = line.SubString(1, line.nthDexOf("!", 0));
+                                string channel = line.SubString(line.nthDexOf("#", 0) + 1, line.ToString().IndexOf(" ", line.nthDexOf("#", 0) + 1));
+                                msg = line.SubString(line.nthDexOf(":", 1) + 1);
+                                if (user.ToLower() != channel.ToLower())
+                                {
+                                    foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
                                     {
-                                        state.client.Close();
-                                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_FAIL),3);
-                                        GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_FAIL.ToString()));
-                                        return;
-                                    }
-                                    break;
-                                case "001":
-                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_SUCCESS),1);
-                                    GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_SUCCESS.ToString()));
-                                    break;
-                                case "PRIVMSG":
-                                    string user = line.SubString(1, line.nthDexOf("!", 0));
-                                    string channel = line.SubString(line.nthDexOf("#", 0) + 1, line.ToString().IndexOf(" ", line.nthDexOf("#", 0) + 1));
-                                    msg = line.SubString(line.nthDexOf(":", 1) + 1);
-                                    if (user.ToLower() != channel.ToLower())
-                                    {
-                                        foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
+                                        if ((GlobalVars.oUsers[k] == true) && (k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToString().ToLower() == channel.ToLower()))
                                         {
-                                            if ((GlobalVars.oUsers[k] == true) && (k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToString().ToLower() == channel.ToLower()))
+                                            string processedMsg = "";
+                                            string[] splitmsg = Regex.Split(msg, " ");
+                                            foreach (string s in splitmsg.ToArray())
                                             {
-                                                string processedMsg = "";
-                                                string[] splitmsg = Regex.Split(msg, " ");
-                                                foreach (string s in splitmsg.ToArray())
+                                                var regstr = Regex.Match(s, "http://osu.ppy.sh/b/([0-9]{1,})+");
+                                                if (regstr.Success)
                                                 {
-                                                    var regstr = Regex.Match(s, "http://osu.ppy.sh/b/([0-9]{1,})+");
-                                                    if (regstr.Success)
+                                                    BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&b=" + regstr.Groups[1].Value);
+                                                    if (btmp.Length != 0)
                                                     {
-                                                        BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&b=" + regstr.Groups[1].Value);
-                                                        if (btmp.Length != 0)
-                                                        {
-                                                            processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
-                                                        }
-                                                        else { processedMsg += s + " "; }
-                                                        continue;
+                                                        processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
                                                     }
-                                                    regstr = Regex.Match(s, "http://osu.ppy.sh/s/([0-9]{1,})+");
-                                                    if (regstr.Success)
-                                                    {
-                                                        BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&s=" + regstr.Groups[1].Value);
-                                                        if (btmp.Length != 0)
-                                                        {
-                                                            processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
-                                                        }
-                                                        else { processedMsg += s + " "; }
-                                                        continue;
-                                                    }
-                                                    processedMsg += s + " ";
+                                                    else { processedMsg += s + " "; }
+                                                    continue;
                                                 }
-                                                msg = "PRIVMSG " + k.SubString(0, k.nthDexOf(",", 0)) + " :" + user + ": " + processedMsg.Substring(0, processedMsg.LastIndexOf(" ")) + "\n";
-                                                GlobalCalls.AddToQueue(msg);
+                                                regstr = Regex.Match(s, "http://osu.ppy.sh/s/([0-9]{1,})+");
+                                                if (regstr.Success)
+                                                {
+                                                    BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&s=" + regstr.Groups[1].Value);
+                                                    if (btmp.Length != 0)
+                                                    {
+                                                        processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
+                                                    }
+                                                    else { processedMsg += s + " "; }
+                                                    continue;
+                                                }
+                                                processedMsg += s + " ";
                                             }
+                                            msg = "PRIVMSG " + k.SubString(0, k.nthDexOf(",", 0)) + " :" + user + ": " + processedMsg.Substring(0, processedMsg.LastIndexOf(" ")) + "\n";
+                                            GlobalCalls.AddToQueue(msg);
                                         }
                                     }
-                                    break;
-                            }
+                                }
+                                break;
                         }
                     }
-
                 }
                 state.client.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, new AsyncCallback(tRead), state);
             }

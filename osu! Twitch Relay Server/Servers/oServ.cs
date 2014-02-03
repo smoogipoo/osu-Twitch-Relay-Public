@@ -63,82 +63,79 @@ namespace osu_Twitch_Relay_Server
             }
             if (readlength > 0)
             {
-                sString receivedstr = Encoding.ASCII.GetString(buffer, 0, readlength);
-                if (receivedstr.ToString().Length > 3)
+                string[] splitstr = Regex.Split(Encoding.ASCII.GetString(buffer, 0, readlength), "\n");
+                for (int i = 0; i <= splitstr.Count() - 2; i++)
                 {
-                    string[] splitstr = Regex.Split(receivedstr.ToString(), "\n");
-                    for (int i = 0; i <= splitstr.Count() - 2; i++)
+                    if (splitstr[i].Length < 4)
+                        continue;
+                    sString line = splitstr[i];
+                    if (line.SubString(0, 4) == "PING")
                     {
-                        sString line = splitstr[i];
-                        if (line.SubString(0, 4) == "PING")
+                        GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PONG\n"));
+                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_PONG));
+                    }
+                    else
+                    {
+                        string command = line.SubString(line.nthDexOf(" ", 0) + 1, line.nthDexOf(" ", 1));
+                        string msg = "";
+                        switch (command)
                         {
-                            GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PONG\n"));
-                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_PONG));
-                        }
-                        else
-                        {
-                            string command = line.SubString(line.nthDexOf(" ", 0) + 1, line.nthDexOf(" ", 1));
-                            string msg = "";
-                            switch (command)
-                            {
-                                case "464":
-                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_AUTH_FAIL),3);
-                                    GlobalVars.oSock.Close();
-                                    oConn(true);
-                                    break;
-                                case "001":
-                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_AUTH_SUCCESS),1);
-                                    break;
-                                case "PRIVMSG":
-                                    string user = line.SubString(1, line.nthDexOf("!", 0));
-                                    msg = line.SubString(line.nthDexOf(":", 1) + 1);
-                                    foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
+                            case "464":
+                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_AUTH_FAIL),3);
+                                GlobalVars.oSock.Close();
+                                oConn(true);
+                                break;
+                            case "001":
+                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_AUTH_SUCCESS),1);
+                                break;
+                            case "PRIVMSG":
+                                string user = line.SubString(1, line.nthDexOf("!", 0));
+                                msg = line.SubString(line.nthDexOf(":", 1) + 1);
+                                foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
+                                {
+                                    if (k.SubString(0, k.nthDexOf(",", 0)).ToString().ToLower() == user.ToLower())
                                     {
-                                        if (k.SubString(0, k.nthDexOf(",", 0)).ToString().ToLower() == user.ToLower())
+                                        if (msg == "!auth")
                                         {
-                                            if (msg == "!auth")
+                                            GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
+                                            if (GlobalVars.oUsers[k] == true)
                                             {
-                                                GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
-                                                if (GlobalVars.oUsers[k] == true)
-                                                {
-                                                    GlobalVars.oSock.Send(Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
-                                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
-                                                    GlobalCalls.WriteToConsole(user);
-                                                }
-                                                else
-                                                {
-                                                    GlobalVars.oSock.Send(Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
-                                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
-                                                    GlobalCalls.WriteToConsole(user);
-                                                }
+                                                GlobalVars.oSock.Send(Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
+                                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
+                                                GlobalCalls.WriteToConsole(user);
                                             }
                                             else
                                             {
-                                                if (GlobalVars.oUsers[k] == true)
+                                                GlobalVars.oSock.Send(Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
+                                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
+                                                GlobalCalls.WriteToConsole(user);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            if (GlobalVars.oUsers[k] == true)
+                                            {
+                                                switch (msg)
                                                 {
-                                                    switch (msg)
-                                                    {
-                                                        case "!viewers":
-                                                            TwitchInfo tSerialized = GlobalCalls.ParseTwitchData(k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower());
-                                                            GlobalCalls.AddToQueue("PRIVMSG " + user + " :" + tSerialized.viewers_count + " Viewers.\n");
-                                                            break;
+                                                    case "!viewers":
+                                                        TwitchInfo tSerialized = GlobalCalls.ParseTwitchData(k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower());
+                                                        GlobalCalls.AddToQueue("PRIVMSG " + user + " :" + tSerialized.viewers_count + " Viewers.\n");
+                                                        break;
 
-                                                        default:
-                                                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OTT_MESSAGE_SENT));
-                                                            GlobalVars.tUsers[k].Send(Encoding.ASCII.GetBytes("PRIVMSG #" + k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower() + " :" + msg + "\n"));
-                                                            break;
-                                                    }
+                                                    default:
+                                                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OTT_MESSAGE_SENT));
+                                                        GlobalVars.tUsers[k].Send(Encoding.ASCII.GetBytes("PRIVMSG #" + k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower() + " :" + msg + "\n"));
+                                                        break;
                                                 }
                                             }
-                                            break;
                                         }
+                                        break;
                                     }
-                                    break;
+                                }
+                                break;
                             }
                         }
                     }
-
-                }
                 buffer = new byte[65536];
                 GlobalVars.oSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(oRead), buffer);
             }
