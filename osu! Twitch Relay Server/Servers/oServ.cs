@@ -100,13 +100,13 @@ namespace osu_Twitch_Relay_Server
                                             GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
                                             if (GlobalVars.oUsers[k] == true)
                                             {
-                                                GlobalVars.oSock.Send(Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
+                                                GlobalCalls.WriteToSocket(GlobalVars.oSock,Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
                                                 GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
                                                 GlobalCalls.WriteToConsole(user);
                                             }
                                             else
                                             {
-                                                GlobalVars.oSock.Send(Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
+                                                GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
                                                 GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
                                                 GlobalCalls.WriteToConsole(user);
                                             }
@@ -124,7 +124,7 @@ namespace osu_Twitch_Relay_Server
 
                                                     default:
                                                         GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OTT_MESSAGE_SENT));
-                                                        GlobalVars.tUsers[k].Send(Encoding.ASCII.GetBytes("PRIVMSG #" + k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower() + " :" + msg + "\n"));
+                                                        GlobalCalls.WriteToSocket(GlobalVars.tUsers[k], Encoding.ASCII.GetBytes("PRIVMSG #" + k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower() + " :" + msg + "\n"));
                                                         break;
                                                 }
                                             }
