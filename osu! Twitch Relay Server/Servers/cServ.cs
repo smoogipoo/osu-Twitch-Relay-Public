@@ -53,7 +53,7 @@ namespace osu_Twitch_Relay_Server
             }
             if (readlength > 0)
             {
-                sString receivedstr = Encoding.ASCII.GetString(state.buffer, 0, readlength); //Contains: oName,tName,TwitchToken,privKey
+                sString receivedstr = Encoding.ASCII.GetString(state.buffer, 0, readlength); //Contains: oName,tName,TwitchToken,privKey,
                 GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.CLIENT_RECEIVED_CONNECTION),1);
                 GlobalCalls.WriteToConsole("o:" + receivedstr.SubString(0, receivedstr.nthDexOf(",", 0)) + "\tt:" + receivedstr.SubString(receivedstr.nthDexOf(",", 0) + 1, receivedstr.nthDexOf(",", 1)));
                 if (receivedstr.CountOf(",") == 4)

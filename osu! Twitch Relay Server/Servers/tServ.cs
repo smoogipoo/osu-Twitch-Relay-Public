@@ -14,7 +14,7 @@ namespace osu_Twitch_Relay_Server
         static bool trashb;
         static Socket trashs;
 
-        public static void tConn(GlobalVars.tState state, bool retry = false)
+        public static void tConn(GlobalVars.tState state, bool retry = false, bool Authed = false)
         {
             Socket tempSck = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             try
@@ -67,9 +67,26 @@ namespace osu_Twitch_Relay_Server
                 }
                 if (alreadyAuthenticated == false)
                 {
+                    if (Authed == true)
+                    {
+                        while (GlobalVars.oUsers.TryAdd(state.receivedstr, true) == false) ;
+                        while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
+                        foreach (string k in GlobalVars.settings.GetKeys().ToArray())
+                        {
+                            if (GlobalVars.settings.GetSetting(k) == state.receivedstr.ToString())
+                            {
+                                GlobalVars.settings.DeleteSetting(k);
+                                break;
+                            }
+                        }
+                        GlobalVars.settings.Save();
+                    }
+                    else
+                    {
+                        while (GlobalVars.oUsers.TryAdd(state.receivedstr, false) == false) ;
+                        while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
+                    }
 
-                    while (GlobalVars.oUsers.TryAdd(state.receivedstr, false) == false) ;
-                    while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
                 }
                 if ((alreadyAuthenticated == false) || (alreadyAuthenticated == true && retry == true))
                 {

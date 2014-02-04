@@ -25,6 +25,9 @@ namespace osu_Twitch_Relay_Server
         volatile public static ConcurrentDictionary<sString, bool> oUsers = new ConcurrentDictionary<sString, bool>();  //oName,tName,TwitchToken, | False OR True
         volatile public static ConcurrentDictionary<sString, Socket> tUsers = new ConcurrentDictionary<sString, Socket>();  //oName,tName,TwitchToken, | TwitchState
         volatile public static List<Int64> oSendTimes = new List<Int64>(); //CurrentTime
+        public static Settings settings = null;
+        public static string email_Email = ""; //This must be set but has been removed for privacy reasons
+        public static string email_Pass = ""; //This must be set but has been removed for privacy reasons
 
         public class ClientState
         {

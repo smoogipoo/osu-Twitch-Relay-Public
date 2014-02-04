@@ -100,12 +100,23 @@ namespace osu_Twitch_Relay_Server
                                             GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
                                             if (GlobalVars.oUsers[k] == true)
                                             {
+                                                GlobalVars.settings.AddSetting("AuthUser" + GlobalVars.settings.GetKeys().Count, k.ToString(), true);
+                                                GlobalVars.settings.Save();
                                                 GlobalCalls.WriteToSocket(GlobalVars.oSock,Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
                                                 GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
                                                 GlobalCalls.WriteToConsole(user);
                                             }
                                             else
                                             {
+                                                foreach (string setting_key in GlobalVars.settings.GetKeys())
+                                                {
+                                                    if (GlobalVars.settings.GetSetting(setting_key) == k.ToString())
+                                                    {
+                                                        GlobalVars.settings.DeleteSetting(setting_key);
+                                                        break;
+                                                    }
+                                                }
+                                                GlobalVars.settings.Save();
                                                 GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
                                                 GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
                                                 GlobalCalls.WriteToConsole(user);
