@@ -71,15 +71,6 @@ namespace osu_Twitch_Relay_Server
                     {
                         while (GlobalVars.oUsers.TryAdd(state.receivedstr, true) == false) ;
                         while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
-                        foreach (string k in GlobalVars.settings.GetKeys().ToArray())
-                        {
-                            if (GlobalVars.settings.GetSetting(k) == state.receivedstr.ToString())
-                            {
-                                GlobalVars.settings.DeleteSetting(k);
-                                break;
-                            }
-                        }
-                        GlobalVars.settings.Save();
                     }
                     else
                     {
