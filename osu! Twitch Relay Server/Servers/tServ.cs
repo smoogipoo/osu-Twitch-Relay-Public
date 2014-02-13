@@ -116,7 +116,7 @@ namespace osu_Twitch_Relay_Server
                     sString line = splitstr[i];
                     if (line.SubString(0, 4) == "PING")
                     {
-                        GlobalCalls.WriteToSocket(state.client, Encoding.ASCII.GetBytes("PONG\n"));
+                        GlobalCalls.WriteToSocket(state.client, Encoding.ASCII.GetBytes(line.ToString().Replace("PING", "PONG") + "\r\n"));
                         GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_PONG));
                     }
                     else

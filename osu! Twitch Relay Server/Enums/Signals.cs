@@ -50,5 +50,7 @@ namespace osu_Twitch_Relay_Server
         //Player signals
         PLAYER_AUTHED = 28,
         PLAYER_DEAUTHED = 29,
+
+
     }
 }

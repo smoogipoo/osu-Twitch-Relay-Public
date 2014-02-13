@@ -97,6 +97,8 @@ namespace osu_Twitch_Relay_Server
                     break;
             }
             Console.WriteLine(System.DateTime.Now.ToString() + " - " + message);
+            GlobalVars.logWriter.WriteLine(System.DateTime.Now.ToString() + " - " + message);
+            GlobalVars.logWriter.Flush();
         }
     }
 }
