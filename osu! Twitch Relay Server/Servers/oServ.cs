@@ -24,6 +24,8 @@ namespace osu_Twitch_Relay_Server
         {
             try
             {
+                GlobalVars.oFirstPing = true;
+                GlobalVars.oSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 GlobalVars.oSock.Connect("irc.ppy.sh", 6667);
                 if (retry == true)
                 {
@@ -72,7 +74,15 @@ namespace osu_Twitch_Relay_Server
                     if (line.SubString(0, 4) == "PING")
                     {
                         GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes(line.ToString().Replace("PING", "PONG") + "\n"));
-                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_PONG));
+                        if (GlobalVars.oFirstPing == true)
+                        {
+                            GlobalVars.oFirstPing = false;
+                            System.Threading.Thread pingThread = new System.Threading.Thread(oPing);
+                            pingThread.IsBackground = true;
+                            pingThread.Start();
+                        }
+
+                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_PONGS));
                     }
                     else
                     {
@@ -87,6 +97,10 @@ namespace osu_Twitch_Relay_Server
                                 break;
                             case "001":
                                 GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_AUTH_SUCCESS),1);
+                                break;
+                            case "PONG":
+                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_PONGR));
+                                GlobalVars.oPongTime = (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                                 break;
                             case "PRIVMSG":
                                 string user = line.SubString(1, line.nthDexOf("!", 0));
@@ -144,12 +158,37 @@ namespace osu_Twitch_Relay_Server
                                     }
                                 }
                                 break;
+                            default:
+                                if (GlobalVars.logAll == true)
+                                    GlobalCalls.WriteToConsole(line.ToString());
+                                break;
                             }
                         }
                     }
                 buffer = new byte[65536];
                 GlobalVars.oSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(oRead), buffer);
             }
+        }
+
+        public void oPing()
+        {
+            do
+            {
+                System.Threading.Thread.Sleep(40000);
+                if (GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PING\n")) == false)
+                    return;
+                System.Threading.Thread.Sleep(10000);
+                if ((int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - GlobalVars.oPongTime > 20)
+                {
+                    GlobalVars.oSock.Shutdown(SocketShutdown.Both);
+                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_DISCONNECTED), 3);
+                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_RECONNECTING_ONE), 2);
+                    System.Threading.Thread.Sleep(1000);
+                    oConn(true);
+                    break;
+                }
+            } while (true);
+
         }
     }
 }

@@ -67,13 +67,14 @@ namespace osu_Twitch_Relay_Server
             GlobalVars.oSendTimes.RemoveAt(0);
         }
 
-        public static void WriteToSocket(Socket sck, byte[] data)
+        public static bool WriteToSocket(Socket sck, byte[] data)
         {
             try
             {
                 sck.Send(data);
+                return true;
             }
-            catch { }
+            catch { return false; }
         }
 
         public static void WriteToConsole(string message, int type = 0)

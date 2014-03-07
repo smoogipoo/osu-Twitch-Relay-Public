@@ -82,7 +82,7 @@ namespace osu_Twitch_Relay_Server
                 if ((alreadyAuthenticated == false) || (alreadyAuthenticated == true && retry == true))
                 {
                     state.client = tempSck;
-                    tempSck.Send(System.Text.Encoding.ASCII.GetBytes("PASS " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 1) + 1, state.receivedstr.nthDexOf(",", 2)) + "\nNICK " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)) + "\nJOIN #" + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)).ToLower() + "\n"));
+                    tempSck.Send(System.Text.Encoding.ASCII.GetBytes("PASS " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 1) + 1, state.receivedstr.nthDexOf(",", 2)) + "\r\nNICK " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)) + "\r\nJOIN #" + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)).ToLower() + "\r\n"));
                     tempSck.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, new AsyncCallback(tRead), state);
                 }
 
@@ -117,7 +117,19 @@ namespace osu_Twitch_Relay_Server
                     if (line.SubString(0, 4) == "PING")
                     {
                         GlobalCalls.WriteToSocket(state.client, Encoding.ASCII.GetBytes(line.ToString().Replace("PING", "PONG") + "\r\n"));
-                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_PONG));
+                        if (state.tFirstPing == true)
+                        {
+                            state.tFirstPing = false;
+                            System.Threading.Thread pingThread = new System.Threading.Thread(tPing);
+                            pingThread.IsBackground = true;
+                            pingThread.Start(state);
+                        }
+                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_PONGS));
+                    }
+                    else if (line.SubString(0, 4) == "PONG")
+                    {
+                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_PONGR));
+                        state.tPongTime = (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                     }
                     else
                     {
@@ -130,13 +142,13 @@ namespace osu_Twitch_Relay_Server
                                 if (msg == "Login unsuccessful")
                                 {
                                     state.client.Close();
-                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_FAIL),3);
+                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_FAIL), 3);
                                     GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_FAIL.ToString()));
                                     return;
                                 }
                                 break;
                             case "001":
-                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_SUCCESS),1);
+                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_SUCCESS), 1);
                                 GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_SUCCESS.ToString()));
                                 break;
                             case "PRIVMSG":
@@ -183,11 +195,36 @@ namespace osu_Twitch_Relay_Server
                                     }
                                 }
                                 break;
+                            default:
+                                if (GlobalVars.logAll == true)
+                                    GlobalCalls.WriteToConsole(line.ToString());
+                                break;
                         }
                     }
                 }
                 state.client.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, new AsyncCallback(tRead), state);
             }
+        }
+
+        public static void tPing(object state)
+        {
+            do
+            {
+                System.Threading.Thread.Sleep(40000);
+                if (GlobalCalls.WriteToSocket(((GlobalVars.tState)state).client, Encoding.ASCII.GetBytes("PING\r\n")) == false)
+                    return;
+                System.Threading.Thread.Sleep(10000);
+                if ((int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - ((GlobalVars.tState)state).tPongTime > 20)
+                {
+                    ((GlobalVars.tState)state).client.Shutdown(SocketShutdown.Both);
+                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_DISCONNECTED), 3);
+                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_RECONNECTING_ONE), 2);
+                    System.Threading.Thread.Sleep(1000);
+                    tConn((GlobalVars.tState)state, true, true);
+                    break;
+                }
+            } while (true);
+
         }
     }
 }

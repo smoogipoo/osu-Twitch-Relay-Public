@@ -47,7 +47,16 @@ namespace osu_Twitch_Relay_Server
                 }
             }
 
-            while (true) { Console.ReadKey(); }
+            while (true) {
+                string s = Console.ReadLine();
+                if (s == "log-all")
+                {
+                    if (GlobalVars.logAll == true)
+                        GlobalVars.logAll = false;
+                    else
+                        GlobalVars.logAll = true;
+                }
+            }
         }
         static void Program_UnhandledExceptionTrap(object sender, UnhandledExceptionEventArgs e)
         {
@@ -58,7 +67,7 @@ namespace osu_Twitch_Relay_Server
                 SmtpClient client = new SmtpClient("smtp.gmail.com", 587);
                 client.EnableSsl = true;
                 client.Credentials = new System.Net.NetworkCredential(GlobalVars.email_Email, GlobalVars.email_Pass);
-                client.Send(GlobalVars.email_Email, "@gmail.com", "Crash on " + System.DateTime.Now.ToString(), e.ExceptionObject.ToString());
+                client.Send(GlobalVars.email_Email, "...@gmail.com", "Crash on " + System.DateTime.Now.ToString(), e.ExceptionObject.ToString());
             }
             catch { }
 
