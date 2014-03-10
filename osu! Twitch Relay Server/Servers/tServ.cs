@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using smgiFuncs;
 
 namespace osu_Twitch_Relay_Server
@@ -14,7 +12,7 @@ namespace osu_Twitch_Relay_Server
         static bool trashb;
         static Socket trashs;
 
-        public static void tConn(GlobalVars.tState state, bool retry = false, bool Authed = false)
+        public static void tConn(GlobalVars.tState state, bool retry = false, bool prevAuthed = false)
         {
             Socket tempSck = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             try
@@ -32,60 +30,41 @@ namespace osu_Twitch_Relay_Server
                 System.Threading.Thread.Sleep(1000);
                 tConn(state, true);
             }
-            if (tempSck.Connected == true)
+            if (tempSck.Connected)
             {
                 bool alreadyAuthenticated = false;
                 state.receivedstr = state.receivedstr.ToString().Replace(" ", "_");
-                foreach (var user in GlobalVars.oUsers)
+                foreach (var user in GlobalVars.oUsers.Where(user => (user.Key.SubString(0, user.Key.nthDexOf(",", 0)) == state.receivedstr.SubString(0, state.receivedstr.nthDexOf(",", 0))) || (user.Key.SubString(user.Key.nthDexOf(",", 0) + 1, user.Key.nthDexOf(",", 1)) == state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)))))
                 {
-                    if ((user.Key.SubString(0, user.Key.nthDexOf(",", 0)) == state.receivedstr.SubString(0, state.receivedstr.nthDexOf(",", 0))) || (user.Key.SubString(user.Key.nthDexOf(",", 0) + 1, user.Key.nthDexOf(",", 1)) == state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1))))
+                    if (user.Value)
                     {
-                        if (user.Value == true)
+                        alreadyAuthenticated = true;
+                        if (retry)
                         {
-                            alreadyAuthenticated = true;
-                            if (retry == true)
-                            {
-                                while (GlobalVars.tUsers.TryRemove(user.Key, out trashs) == false) ;
-                                while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
-                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_RECONNECTED),1);
-                                GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_RECONNECTED.ToString()));
-                            }
-                            else
-                            {
-                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.USER_ALREADY_AUTHENTICATED),1);
-                                GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.USER_ALREADY_AUTHENTICATED.ToString()));
-                            }
-                            break;
+                            while (GlobalVars.tUsers.TryRemove(user.Key, out trashs) == false) ;
+                            while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
+                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_RECONNECTED),1);
+                            GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_RECONNECTED.ToString()));
                         }
                         else
                         {
-                            while (GlobalVars.oUsers.TryRemove(user.Key, out trashb) == false) ;
-                            while (GlobalVars.tUsers.TryRemove(user.Key, out trashs) == false) ;
+                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.USER_ALREADY_AUTHENTICATED),1);
+                            GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.USER_ALREADY_AUTHENTICATED.ToString()));
+                            return;
                         }
-
+                        break;
                     }
+                    while (GlobalVars.oUsers.TryRemove(user.Key, out trashb) == false) ;
+                    while (GlobalVars.tUsers.TryRemove(user.Key, out trashs) == false) ;
                 }
-                if (alreadyAuthenticated == false)
+                if (!alreadyAuthenticated && !retry)
                 {
-                    if (Authed == true)
-                    {
-                        while (GlobalVars.oUsers.TryAdd(state.receivedstr, true) == false) ;
-                        while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
-                    }
-                    else
-                    {
-                        while (GlobalVars.oUsers.TryAdd(state.receivedstr, false) == false) ;
-                        while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
-                    }
-
+                    while (GlobalVars.oUsers.TryAdd(state.receivedstr, prevAuthed) == false) ;
+                    while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
                 }
-                if ((alreadyAuthenticated == false) || (alreadyAuthenticated == true && retry == true))
-                {
-                    state.client = tempSck;
-                    tempSck.Send(System.Text.Encoding.ASCII.GetBytes("PASS " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 1) + 1, state.receivedstr.nthDexOf(",", 2)) + "\r\nNICK " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)) + "\r\nJOIN #" + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)).ToLower() + "\r\n"));
-                    tempSck.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, new AsyncCallback(tRead), state);
-                }
-
+                state.client = tempSck;
+                tempSck.Send(Encoding.ASCII.GetBytes("PASS " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 1) + 1, state.receivedstr.nthDexOf(",", 2)) + "\r\nNICK " + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)) + "\r\nJOIN #" + state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)).ToLower() + "\r\n"));
+                tempSck.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, tRead, state);
             }
         }
 
@@ -117,7 +96,7 @@ namespace osu_Twitch_Relay_Server
                     if (line.SubString(0, 4) == "PING")
                     {
                         GlobalCalls.WriteToSocket(state.client, Encoding.ASCII.GetBytes(line.ToString().Replace("PING", "PONG") + "\r\n"));
-                        if (state.tFirstPing == true)
+                        if (state.tFirstPing)
                         {
                             state.tFirstPing = false;
                             System.Threading.Thread pingThread = new System.Threading.Thread(tPing);
@@ -134,7 +113,7 @@ namespace osu_Twitch_Relay_Server
                     else
                     {
                         string command = line.SubString(line.nthDexOf(" ", 0) + 1, line.nthDexOf(" ", 1));
-                        string msg = "";
+                        string msg;
                         switch (command)
                         {
                             case "NOTICE":
@@ -144,6 +123,17 @@ namespace osu_Twitch_Relay_Server
                                     state.client.Close();
                                     GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_AUTH_FAIL), 3);
                                     GlobalCalls.WriteToSocket(state.originalClient, Encoding.ASCII.GetBytes(Signals.TWITCH_AUTH_FAIL.ToString()));
+                                    foreach (string k in GlobalVars.settings.GetKeys().Where(k => k.Contains("AuthUser")))
+                                    {
+                                        sString k1 = GlobalVars.settings.GetSetting(k);
+                                        if (Equals(k1, state.receivedstr))
+                                        {
+                                            GlobalVars.settings.DeleteSetting(k);
+                                            GlobalVars.settings.Save();
+                                            while (GlobalVars.oUsers.TryRemove(k1, out trashb) == false) ;
+                                            while (GlobalVars.tUsers.TryRemove(k1, out trashs) == false) ;
+                                        }
+                                    }
                                     return;
                                 }
                                 break;
@@ -153,13 +143,13 @@ namespace osu_Twitch_Relay_Server
                                 break;
                             case "PRIVMSG":
                                 string user = line.SubString(1, line.nthDexOf("!", 0));
-                                string channel = line.SubString(line.nthDexOf("#", 0) + 1, line.ToString().IndexOf(" ", line.nthDexOf("#", 0) + 1));
+                                string channel = line.SubString(line.nthDexOf("#", 0) + 1, line.ToString().IndexOf(" ", line.nthDexOf("#", 0) + 1, StringComparison.Ordinal));
                                 msg = line.SubString(line.nthDexOf(":", 1) + 1);
-                                if (user.ToLower() != channel.ToLower())
+                                if (!String.Equals(user, channel, StringComparison.CurrentCultureIgnoreCase))
                                 {
                                     foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
                                     {
-                                        if ((GlobalVars.oUsers[k] == true) && (k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToString().ToLower() == channel.ToLower()))
+                                        if ((GlobalVars.oUsers[k]) && (String.Equals(k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)), channel, StringComparison.CurrentCultureIgnoreCase)))
                                         {
                                             string processedMsg = "";
                                             string[] splitmsg = Regex.Split(msg, " ");
@@ -189,20 +179,20 @@ namespace osu_Twitch_Relay_Server
                                                 }
                                                 processedMsg += s + " ";
                                             }
-                                            msg = "PRIVMSG " + k.SubString(0, k.nthDexOf(",", 0)) + " :" + user + ": " + processedMsg.Substring(0, processedMsg.LastIndexOf(" ")) + "\n";
+                                            msg = "PRIVMSG " + k.SubString(0, k.nthDexOf(",", 0)) + " :" + user + ": " + processedMsg.Substring(0, processedMsg.LastIndexOf(" ", StringComparison.Ordinal)) + "\n";
                                             GlobalCalls.AddToQueue(msg);
                                         }
                                     }
                                 }
                                 break;
                             default:
-                                if (GlobalVars.logAll == true)
+                                if (GlobalVars.logAll)
                                     GlobalCalls.WriteToConsole(line.ToString());
                                 break;
                         }
                     }
                 }
-                state.client.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, new AsyncCallback(tRead), state);
+                state.client.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, tRead, state);
             }
         }
 

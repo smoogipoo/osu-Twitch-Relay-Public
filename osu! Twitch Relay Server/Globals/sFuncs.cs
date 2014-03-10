@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Data;
+using System.Linq;
 
 namespace smgiFuncs
 {
@@ -9,7 +8,7 @@ namespace smgiFuncs
     #region "Application Settings"
     public class Settings
     {
-        Dictionary<string, string> s_settings = new Dictionary<string, string>();
+        readonly Dictionary<string, string> s_settings = new Dictionary<string, string>();
         System.IO.FileStream s_file;
 
         public Settings()
@@ -24,34 +23,25 @@ namespace smgiFuncs
                 while (sR.Peek() != -1)
                 {
                     string s = sR.ReadLine();
-                    s_settings.Add(s.Substring(0, s.IndexOf(":")), s.Substring(s.IndexOf(":") + 1));
+                    if (s != null)
+                        s_settings.Add(s.Substring(0, s.IndexOf(":", StringComparison.Ordinal)), s.Substring(s.IndexOf(":", StringComparison.Ordinal) + 1));
                 }
             }
             s_file = new System.IO.FileStream(AppDomain.CurrentDomain.BaseDirectory + "\\settings.dat", System.IO.FileMode.OpenOrCreate, System.IO.FileAccess.ReadWrite, System.IO.FileShare.ReadWrite);
         }
         public bool ContainsSetting(string name)
         {
-            if (s_settings.ContainsKey(name))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return s_settings.ContainsKey(name);
         }
+
         public List<string> GetKeys()
         {
-            List<string> temp = new List<string>();
-            foreach (string k in s_settings.Keys)
-            {
-                temp.Add(k);
-            }
-            return temp;
+            return s_settings.Keys.ToList();
+
         }
         public void AddSetting(string name, string value, bool overwrite = true)
         {
-            if ((s_settings.ContainsKey(name)) & (overwrite == true))
+            if ((s_settings.ContainsKey(name)) & (overwrite))
             {
                 s_settings[name] = value;
             }
@@ -62,12 +52,9 @@ namespace smgiFuncs
         }
         public string GetSetting(string name)
         {
-            if (s_settings.ContainsKey(name))
-            {
-                return s_settings[name];
-            }
-            else { return ""; }
+            return s_settings.ContainsKey(name) ? s_settings[name] : "";
         }
+
         public void DeleteSetting(string name)
         {
             if (s_settings.ContainsKey(name))
@@ -77,14 +64,10 @@ namespace smgiFuncs
         }
         public void Save()
         {
-            string constructedString = "";
-            foreach (var di in s_settings)
-            {
-                constructedString += di.Key + ":" + di.Value + Environment.NewLine;
-            }
+            string constructedString = s_settings.Aggregate("", (str, di) => str + (di.Key + ":" + di.Value + Environment.NewLine));
             if (constructedString != "")
             {
-                constructedString = constructedString.Substring(0, constructedString.LastIndexOf(Environment.NewLine));
+                constructedString = constructedString.Substring(0, constructedString.LastIndexOf(Environment.NewLine, StringComparison.Ordinal));
             }
             s_file.SetLength(constructedString.Length);
             s_file.Position = 0;
@@ -97,7 +80,7 @@ namespace smgiFuncs
     #region "String Datatype"
     public class sString
     {
-        private string _data;
+        internal readonly string _data;
         public sString(String s)
         {
             _data = s;
@@ -110,17 +93,38 @@ namespace smgiFuncs
         {
             return _data;
         }
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+            {
+                return false;
+            }
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+            var other = obj as sString;
+            if (other == null)
+            {
+                return false;
+            }
+            return other._data == _data;
+        }
+        public override int GetHashCode()
+        {
+            return _data.GetHashCode();
+        }
         public int CountOf(string splitter)
         {
             int indx = -1;
             int count = 0;
-            indx = _data.IndexOf(splitter, indx + 1);
+            indx = _data.IndexOf(splitter, indx + 1, StringComparison.Ordinal);
             if (indx != -1)
             {
                 while (indx != -1)
                 {
                     count += 1;
-                    indx = _data.IndexOf(splitter, indx + 1);
+                    indx = _data.IndexOf(splitter, indx + 1, StringComparison.Ordinal);
                 }
             }
             return count;
@@ -128,12 +132,11 @@ namespace smgiFuncs
         public int nthDexOf(string splitter, int count)
         {
             int camnt = -1;
-            int indx = 0;
-            indx = _data.IndexOf(splitter);
+            int indx = _data.IndexOf(splitter, StringComparison.Ordinal);
             camnt += 1;
             while (!((camnt == count) | (indx == -1)))
             {
-                indx = _data.IndexOf(splitter, indx + 1);
+                indx = _data.IndexOf(splitter, indx + 1, StringComparison.Ordinal);
                 if (indx == -1)
                 {
                     return indx;
@@ -160,19 +163,15 @@ namespace smgiFuncs
             {
                 return _data.Substring(startindex, _data.Length - startindex);
             }
-            else
+            if (endindex > _data.Length)
             {
-                if (endindex > _data.Length)
-                {
-                    throw new Exception("The endindex value of '" + endindex + "' exceeds the string length.", new Exception("String: " + _data, new Exception("Length: " + _data.Length)));
-                }
-                return _data.Substring(startindex, endindex - startindex);
+                throw new Exception("The endindex value of '" + endindex + "' exceeds the string length.", new Exception("String: " + _data, new Exception("Length: " + _data.Length)));
             }
+            return _data.Substring(startindex, endindex - startindex);
         }
         public int LastIndexOf(string splitter)
         {
-            int tempval = _data.LastIndexOf(splitter);
-            return tempval;
+            return _data.LastIndexOf(splitter, StringComparison.Ordinal);
         }
     }
     #endregion

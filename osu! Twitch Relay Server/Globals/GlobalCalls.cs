@@ -1,16 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
 using System.Text;
-using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using System.Threading;
 using System.IO;
-using smgiFuncs;
 
 namespace osu_Twitch_Relay_Server
 {
@@ -18,8 +12,8 @@ namespace osu_Twitch_Relay_Server
     {
         public static T ParseOsuData<T>(string url) where T : class
         {
-            T result = null;
-            byte[] jsonBytes = null;
+            T result;
+            byte[] jsonBytes;
             using (WebClient wc = new WebClient())
             {
                 jsonBytes = wc.DownloadData(url);
@@ -34,8 +28,8 @@ namespace osu_Twitch_Relay_Server
 
         public static TwitchInfo ParseTwitchData(string tName)
         {
-            TwitchInfo result = null;
-            byte[] jsonBytes = null;
+            TwitchInfo result;
+            byte[] jsonBytes;
             using (WebClient wc = new WebClient())
             {
                 jsonBytes = wc.DownloadData("http://api.justin.tv/api/stream/summary.json?channel=" + tName);
@@ -57,13 +51,13 @@ namespace osu_Twitch_Relay_Server
                 WaitTime = Math.Abs(1200 - ((Int64)(DateTime.Now.Subtract(new DateTime(1970, 1, 1))).TotalMilliseconds - GlobalVars.oSendTimes[GlobalVars.oSendTimes.Count - 1]));
             }
             GlobalVars.oSendTimes.Add((Int64)(DateTime.Now.Subtract(new DateTime(1970, 1, 1))).TotalMilliseconds + WaitTime);
-            Timer qSendTmr = new Timer(new TimerCallback(oQueueSend), msg, WaitTime, Timeout.Infinite);
+            new Timer(oQueueSend, msg, WaitTime, Timeout.Infinite);
         }
         public static void oQueueSend(object Data)
         {
             WriteToConsole(Enum.GetName(typeof(Signals), Signals.TTO_MESSAGE_SENT));
             WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes((string)Data));
-            System.Threading.Thread.Sleep(1200);
+            Thread.Sleep(1200);
             GlobalVars.oSendTimes.RemoveAt(0);
         }
 
@@ -97,8 +91,8 @@ namespace osu_Twitch_Relay_Server
                     Console.ForegroundColor = ConsoleColor.White;
                     break;
             }
-            Console.WriteLine(System.DateTime.Now.ToString() + " - " + message);
-            GlobalVars.logWriter.WriteLine(System.DateTime.Now.ToString() + " - " + message);
+            Console.WriteLine(DateTime.Now + " - " + message);
+            GlobalVars.logWriter.WriteLine(DateTime.Now + " - " + message);
             GlobalVars.logWriter.Flush();
         }
     }

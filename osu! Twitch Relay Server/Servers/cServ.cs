@@ -1,19 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using smgiFuncs;
 
 namespace osu_Twitch_Relay_Server
 {
     class cServ
     {
-        static AutoResetEvent clientWaitHandle = new AutoResetEvent(false);
+        static readonly AutoResetEvent clientWaitHandle = new AutoResetEvent(false);
         public static void Create()
         {
             new cServ();
@@ -25,7 +21,7 @@ namespace osu_Twitch_Relay_Server
             GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.LISTENER_STARTED),1);
             while (true)
             {
-                clientListener.BeginAcceptSocket(new AsyncCallback(clientAccCB), clientListener);
+                clientListener.BeginAcceptSocket(clientAccCB, clientListener);
                 clientWaitHandle.WaitOne();
                 clientWaitHandle.Reset();
             }
@@ -36,12 +32,12 @@ namespace osu_Twitch_Relay_Server
             state.client = ((TcpListener)result.AsyncState).EndAcceptSocket(result);
             clientWaitHandle.Set();
             GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.CLIENT_CONNECT_SUCCESS),1);
-            state.client.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, new AsyncCallback(clientReadCB), state);
+            state.client.BeginReceive(state.buffer, 0, state.buffer.Length, SocketFlags.None, clientReadCB, state);
         }
         public void clientReadCB(IAsyncResult result)
         {
             GlobalVars.ClientState state = (GlobalVars.ClientState)result.AsyncState;
-            int readlength = 0;
+            int readlength;
             try
             {
                 readlength = state.client.EndReceive(result);

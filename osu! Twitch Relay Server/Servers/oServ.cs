@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Net.Sockets;
-using System.Net;
 using System.Text.RegularExpressions;
 using smgiFuncs;
 
@@ -27,17 +25,10 @@ namespace osu_Twitch_Relay_Server
                 GlobalVars.oFirstPing = true;
                 GlobalVars.oSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 GlobalVars.oSock.Connect("irc.ppy.sh", 6667);
-                if (retry == true)
-                {
-                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_RECONNECTED),1);
-                }
-                else
-                {
-                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_CONNECT_SUCCESS),1);
-                }
+                GlobalCalls.WriteToConsole(retry? Enum.GetName(typeof (Signals), Signals.OSU_RECONNECTED) : Enum.GetName(typeof (Signals), Signals.OSU_CONNECT_SUCCESS), 1);
                 byte[] buffer = new byte[65536];
                 GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PASS " + GlobalVars.osuIRC_Password + "\nNICK " + GlobalVars.osuIRC_Username + "\n"));
-                GlobalVars.oSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(oRead), buffer);
+                GlobalVars.oSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, oRead, buffer);
             }
             catch
             {
@@ -74,7 +65,7 @@ namespace osu_Twitch_Relay_Server
                     if (line.SubString(0, 4) == "PING")
                     {
                         GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes(line.ToString().Replace("PING", "PONG") + "\n"));
-                        if (GlobalVars.oFirstPing == true)
+                        if (GlobalVars.oFirstPing)
                         {
                             GlobalVars.oFirstPing = false;
                             System.Threading.Thread pingThread = new System.Threading.Thread(oPing);
@@ -87,7 +78,6 @@ namespace osu_Twitch_Relay_Server
                     else
                     {
                         string command = line.SubString(line.nthDexOf(" ", 0) + 1, line.nthDexOf(" ", 1));
-                        string msg = "";
                         switch (command)
                         {
                             case "464":
@@ -104,69 +94,65 @@ namespace osu_Twitch_Relay_Server
                                 break;
                             case "PRIVMSG":
                                 string user = line.SubString(1, line.nthDexOf("!", 0));
-                                msg = line.SubString(line.nthDexOf(":", 1) + 1);
-                                foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
+                                string msg = line.SubString(line.nthDexOf(":", 1) + 1);
+                                foreach (sString k in GlobalVars.oUsers.Keys.ToArray().Where(k => String.Equals(k.SubString(0, k.nthDexOf(",", 0)).ToString(CultureInfo.InvariantCulture), user, StringComparison.CurrentCultureIgnoreCase)))
                                 {
-                                    if (k.SubString(0, k.nthDexOf(",", 0)).ToString().ToLower() == user.ToLower())
+                                    if (msg == "!auth")
                                     {
-                                        if (msg == "!auth")
+                                        GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
+                                        if (GlobalVars.oUsers[k])
                                         {
-                                            GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
-                                            if (GlobalVars.oUsers[k] == true)
-                                            {
-                                                GlobalVars.settings.AddSetting("AuthUser" + GlobalVars.settings.GetKeys().Count, k.ToString(), true);
-                                                GlobalVars.settings.Save();
-                                                GlobalCalls.WriteToSocket(GlobalVars.oSock,Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
-                                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
-                                                GlobalCalls.WriteToConsole(user);
-                                            }
-                                            else
-                                            {
-                                                foreach (string setting_key in GlobalVars.settings.GetKeys())
-                                                {
-                                                    if (GlobalVars.settings.GetSetting(setting_key) == k.ToString())
-                                                    {
-                                                        GlobalVars.settings.DeleteSetting(setting_key);
-                                                        break;
-                                                    }
-                                                }
-                                                GlobalVars.settings.Save();
-                                                GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
-                                                GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
-                                                GlobalCalls.WriteToConsole(user);
-                                            }
+                                            GlobalVars.settings.AddSetting("AuthUser" + GlobalVars.settings.GetKeys().Count, k.ToString());
+                                            GlobalVars.settings.Save();
+                                            GlobalCalls.WriteToSocket(GlobalVars.oSock,Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
+                                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
+                                            GlobalCalls.WriteToConsole(user);
                                         }
                                         else
                                         {
-                                            if (GlobalVars.oUsers[k] == true)
+                                            foreach (string setting_key in GlobalVars.settings.GetKeys())
                                             {
-                                                switch (msg)
+                                                if (GlobalVars.settings.GetSetting(setting_key) == k.ToString())
                                                 {
-                                                    case "!viewers":
-                                                        TwitchInfo tSerialized = GlobalCalls.ParseTwitchData(k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower());
-                                                        GlobalCalls.AddToQueue("PRIVMSG " + user + " :" + tSerialized.viewers_count + " Viewers.\n");
-                                                        break;
-
-                                                    default:
-                                                        GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OTT_MESSAGE_SENT));
-                                                        GlobalCalls.WriteToSocket(GlobalVars.tUsers[k], Encoding.ASCII.GetBytes("PRIVMSG #" + k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower() + " :" + msg + "\n"));
-                                                        break;
+                                                    GlobalVars.settings.DeleteSetting(setting_key);
+                                                    break;
                                                 }
                                             }
+                                            GlobalVars.settings.Save();
+                                            GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
+                                            GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
+                                            GlobalCalls.WriteToConsole(user);
                                         }
-                                        break;
                                     }
+                                    else
+                                    {
+                                        if (GlobalVars.oUsers[k])
+                                        {
+                                            switch (msg)
+                                            {
+                                                case "!viewers":
+                                                    TwitchInfo tSerialized = GlobalCalls.ParseTwitchData(k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower());
+                                                    GlobalCalls.AddToQueue("PRIVMSG " + user + " :" + tSerialized.viewers_count + " Viewers.\n");
+                                                    break;
+                                                default:
+                                                    GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OTT_MESSAGE_SENT));
+                                                    GlobalCalls.WriteToSocket(GlobalVars.tUsers[k], Encoding.ASCII.GetBytes("PRIVMSG #" + k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)).ToLower() + " :" + msg + "\n"));
+                                                    break;
+                                            }
+                                        }
+                                    }
+                                    break;
                                 }
                                 break;
                             default:
-                                if (GlobalVars.logAll == true)
+                                if (GlobalVars.logAll)
                                     GlobalCalls.WriteToConsole(line.ToString());
                                 break;
                             }
                         }
                     }
                 buffer = new byte[65536];
-                GlobalVars.oSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(oRead), buffer);
+                GlobalVars.oSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, oRead, buffer);
             }
         }
 
