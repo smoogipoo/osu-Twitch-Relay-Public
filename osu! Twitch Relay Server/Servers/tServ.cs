@@ -210,11 +210,10 @@ namespace osu_Twitch_Relay_Server
                     GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_DISCONNECTED), 3);
                     GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_RECONNECTING_ONE), 2);
                     System.Threading.Thread.Sleep(1000);
-                    tConn((GlobalVars.tState)state, true, true);
                     break;
                 }
             } while (true);
-
+            tConn((GlobalVars.tState)state, true, true);
         }
     }
 }

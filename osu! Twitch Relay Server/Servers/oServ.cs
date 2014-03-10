@@ -170,11 +170,10 @@ namespace osu_Twitch_Relay_Server
                     GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_DISCONNECTED), 3);
                     GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.OSU_RECONNECTING_ONE), 2);
                     System.Threading.Thread.Sleep(1000);
-                    oConn(true);
                     break;
                 }
             } while (true);
-
+            oConn(true);
         }
     }
 }
