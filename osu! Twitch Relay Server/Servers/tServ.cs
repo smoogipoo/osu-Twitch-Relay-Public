@@ -34,13 +34,15 @@ namespace osu_Twitch_Relay_Server
             {
                 bool alreadyAuthenticated = false;
                 state.receivedstr = state.receivedstr.ToString().Replace(" ", "_");
-                foreach (var user in GlobalVars.oUsers.Where(user => (user.Key.SubString(0, user.Key.nthDexOf(",", 0)) == state.receivedstr.SubString(0, state.receivedstr.nthDexOf(",", 0))) || (user.Key.SubString(user.Key.nthDexOf(",", 0) + 1, user.Key.nthDexOf(",", 1)) == state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1)))))
+                foreach (var user in GlobalVars.oUsers.Where(user => user.Key.SubString(0, user.Key.nthDexOf(",", 0)) == state.receivedstr.SubString(0, state.receivedstr.nthDexOf(",", 0)) || user.Key.SubString(user.Key.nthDexOf(",", 0) + 1, user.Key.nthDexOf(",", 1)) == state.receivedstr.SubString(state.receivedstr.nthDexOf(",", 0) + 1, state.receivedstr.nthDexOf(",", 1))))
                 {
                     if (user.Value)
                     {
                         alreadyAuthenticated = true;
                         if (retry)
                         {
+                            if (GlobalVars.tUsers[user.Key].Connected)
+                                GlobalVars.tUsers[user.Key].Shutdown(SocketShutdown.Both);
                             while (GlobalVars.tUsers.TryRemove(user.Key, out trashs) == false) ;
                             while (GlobalVars.tUsers.TryAdd(state.receivedstr, tempSck) == false) ;
                             GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.TWITCH_RECONNECTED),1);
@@ -55,6 +57,8 @@ namespace osu_Twitch_Relay_Server
                         break;
                     }
                     while (GlobalVars.oUsers.TryRemove(user.Key, out trashb) == false) ;
+                    if (GlobalVars.tUsers[user.Key].Connected)
+                        GlobalVars.tUsers[user.Key].Shutdown(SocketShutdown.Both);
                     while (GlobalVars.tUsers.TryRemove(user.Key, out trashs) == false) ;
                 }
                 if (!alreadyAuthenticated && !retry)
