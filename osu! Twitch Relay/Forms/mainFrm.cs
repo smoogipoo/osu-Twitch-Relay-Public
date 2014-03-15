@@ -1,17 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
 using System.Threading;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Net;
 using System.Net.Sockets;
-using System.IO;
 
 using System.Windows.Forms;
 using smgiFuncs;
@@ -20,19 +11,19 @@ namespace osu_Twitch_Relay
 {
     public partial class mainFrm : Form
     {
-        Settings settings = new Settings();
-        ToolTip infoTT = new ToolTip();
-        static LogForm log = new LogForm();
+        readonly Settings settings = new Settings();
+        readonly ToolTip infoTT = new ToolTip();
+        static readonly LogForm log = new LogForm();
 
-        static Socket connSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        byte[] buffer = new byte[50];
+        static readonly Socket connSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        readonly byte[] buffer = new byte[50];
 
         private void Button1_Click(object sender, EventArgs e)
         {
             log.Write("Settings saved.");
-            settings.AddSetting("oName", oNameTB.Text, true);
-            settings.AddSetting("tName", tNameTB.Text, true);
-            settings.AddSetting("tOAuth", tOAuthTB.Text, true);
+            settings.AddSetting("oName", oNameTB.Text);
+            settings.AddSetting("tName", tNameTB.Text);
+            settings.AddSetting("tOAuth", tOAuthTB.Text);
             settings.Save();
 
             log.Write("Attempting to connect to server...");
@@ -46,11 +37,11 @@ namespace osu_Twitch_Relay
             {
                 log.Write("Failed to connect to server.", 3);
             }
-            if (connSock.Connected == true)
+            if (connSock.Connected)
             {
                 log.Write("Attempting to authenticate...");
                 connSock.Send(Encoding.ASCII.GetBytes(oNameTB.Text + "," + tNameTB.Text + "," + tOAuthTB.Text + "," + GlobalVars.privKey + ","));
-                connSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(connRead), buffer);
+                connSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, connRead, buffer);
             }
         }
         private static void connRead(IAsyncResult result)
@@ -96,7 +87,7 @@ namespace osu_Twitch_Relay
                         break;
                 }
                 receivedBytes = new byte[50];
-                connSock.BeginReceive(receivedBytes, 0, receivedBytes.Length, SocketFlags.None, new AsyncCallback(connRead), receivedBytes);
+                connSock.BeginReceive(receivedBytes, 0, receivedBytes.Length, SocketFlags.None, connRead, receivedBytes);
             }
         }
 
@@ -108,33 +99,33 @@ namespace osu_Twitch_Relay
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            MessageBox.Show(Application.ProductName);
             Thread UpdateThread = new Thread(UpdateStart);
+            UpdateThread.IsBackground = true;
             UpdateThread.Start();
 
             oNameTB.Text = settings.GetSetting("oName");
             tNameTB.Text = settings.GetSetting("tName");
             tOAuthTB.Text = settings.GetSetting("tOAuth");
             if (oNameTB.Text == "")
-                oNameTB.Text = "osu! Username";
+                oNameTB.Text = @"osu! Username";
             if (tNameTB.Text == "")
-                tNameTB.Text = "Twitch.tv Username";
+                tNameTB.Text = @"Twitch.tv Username";
             if (tOAuthTB.Text == "")
-                tOAuthTB.Text = "Twitch.tv OAuth Token";
+                tOAuthTB.Text = @"Twitch.tv OAuth Token";
 
             log.Show(this);
-            log.Height = this.Height;
-            log.Location = new Point(this.Location.X + this.Size.Width, this.Location.Y);
+            log.Height = Height;
+            log.Location = new Point(Location.X + Size.Width, Location.Y);
             log.Write("Logging started.");
         }
 
         private void UpdateStart()
         {
-            Updater u = new Updater(settings);
+            new Updater(settings);
         }
         private void Form1_LocationChanged(object sender, EventArgs e)
         {
-            log.Location = new Point(this.Location.X + this.Size.Width, this.Location.Y);
+            log.Location = new Point(Location.X + Size.Width, Location.Y);
         }
 
         private void pictureBox2_MouseEnter(object sender, EventArgs e)
