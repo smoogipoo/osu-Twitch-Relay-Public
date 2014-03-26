@@ -24,6 +24,7 @@ namespace osu_Twitch_Relay_Server
 
         //Debugging
         public static string email_Email = "";
+        public static string email_Target = "";
         public static string email_Pass = "";
         public static StreamWriter logWriter = new StreamWriter(Environment.CurrentDirectory + "\\log.txt");
         public static bool logAll = false;

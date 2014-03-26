@@ -102,7 +102,14 @@ namespace osu_Twitch_Relay_Server
                                         GlobalVars.oUsers[k] = !GlobalVars.oUsers[k];
                                         if (GlobalVars.oUsers[k])
                                         {
-                                            GlobalVars.settings.AddSetting("AuthUser" + GlobalVars.settings.GetKeys().Count, k.ToString());
+                                            bool modified = false;
+                                            foreach (string s in GlobalVars.settings.GetKeys().Where(s => String.Equals(GlobalVars.settings.GetSetting(s).Substring(0, GlobalVars.settings.GetSetting(s).LastIndexOf(",", StringComparison.InvariantCulture) + 1), k.ToString())))
+                                            {
+                                                GlobalVars.settings.AddSetting(s, k + "1");
+                                                modified = true;
+                                            }
+                                            if (!modified)
+                                                GlobalVars.settings.AddSetting("AuthUser" + GlobalVars.settings.GetKeys().Count, k + "1");
                                             GlobalVars.settings.Save();
                                             GlobalCalls.WriteToSocket(GlobalVars.oSock,Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Authorized for in-game messaging.\n"));
                                             GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_AUTHED), 1);
@@ -110,14 +117,14 @@ namespace osu_Twitch_Relay_Server
                                         }
                                         else
                                         {
-                                            foreach (string setting_key in GlobalVars.settings.GetKeys())
+                                            bool modified = false;
+                                            foreach (string s in GlobalVars.settings.GetKeys().Where(s => String.Equals(GlobalVars.settings.GetSetting(s).Substring(0, GlobalVars.settings.GetSetting(s).LastIndexOf(",", StringComparison.InvariantCulture) + 1), k.ToString())))
                                             {
-                                                if (GlobalVars.settings.GetSetting(setting_key) == k.ToString())
-                                                {
-                                                    GlobalVars.settings.DeleteSetting(setting_key);
-                                                    break;
-                                                }
+                                                GlobalVars.settings.AddSetting(s, k + "0");
+                                                modified = true;
                                             }
+                                            if (!modified)
+                                                GlobalVars.settings.AddSetting("AuthUser" + GlobalVars.settings.GetKeys().Count, k + "0");
                                             GlobalVars.settings.Save();
                                             GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PRIVMSG " + user + " :Deauthorized from in-game messaging\n"));
                                             GlobalCalls.WriteToConsole(Enum.GetName(typeof(Signals), Signals.PLAYER_DEAUTHED), 1);
@@ -158,7 +165,7 @@ namespace osu_Twitch_Relay_Server
 
         public void oPing()
         {
-            do
+            while (true)
             {
                 System.Threading.Thread.Sleep(40000);
                 if (GlobalCalls.WriteToSocket(GlobalVars.oSock, Encoding.ASCII.GetBytes("PING\n")) == false)
@@ -172,7 +179,7 @@ namespace osu_Twitch_Relay_Server
                     System.Threading.Thread.Sleep(1000);
                     break;
                 }
-            } while (true);
+            }
             oConn(true);
         }
     }

@@ -8,7 +8,7 @@ namespace smgiFuncs
     #region "Application Settings"
     public class Settings
     {
-        readonly Dictionary<string, string> s_settings = new Dictionary<string, string>();
+        internal readonly Dictionary<string, string> s_settings = new Dictionary<string, string>();
         System.IO.FileStream s_file;
 
         public Settings()
@@ -36,44 +36,61 @@ namespace smgiFuncs
 
         public List<string> GetKeys()
         {
-            return s_settings.Keys.ToList();
-
+            lock (this)
+            {
+                return s_settings.Keys.ToList();
+            }     
         }
         public void AddSetting(string name, string value, bool overwrite = true)
         {
-            if ((s_settings.ContainsKey(name)) & (overwrite))
+            lock (this)
             {
-                s_settings[name] = value;
+                if ((s_settings.ContainsKey(name)) & (overwrite))
+                {
+                    s_settings[name] = value;
+                }
+                else if (s_settings.ContainsKey(name) == false)
+                {
+                    s_settings.Add(name, value);
+                }
             }
-            else if (s_settings.ContainsKey(name) == false)
-            {
-                s_settings.Add(name, value);
-            }
+
         }
         public string GetSetting(string name)
         {
-            return s_settings.ContainsKey(name) ? s_settings[name] : "";
+            lock (this)
+            {
+                return s_settings.ContainsKey(name) ? s_settings[name] : "";
+            }          
         }
 
         public void DeleteSetting(string name)
         {
-            if (s_settings.ContainsKey(name))
+            lock (this)
             {
-                s_settings.Remove(name);
+                if (s_settings.ContainsKey(name))
+                {
+                    s_settings.Remove(name);
+                }
             }
+
         }
         public void Save()
         {
-            string constructedString = s_settings.Aggregate("", (str, di) => str + (di.Key + ":" + di.Value + Environment.NewLine));
-            if (constructedString != "")
+            lock (this)
             {
-                constructedString = constructedString.Substring(0, constructedString.LastIndexOf(Environment.NewLine, StringComparison.Ordinal));
+                string constructedString = s_settings.Aggregate("", (str, di) => str + (di.Key + ":" + di.Value + Environment.NewLine));
+                if (constructedString != "")
+                {
+                    constructedString = constructedString.Substring(0, constructedString.LastIndexOf(Environment.NewLine, StringComparison.Ordinal));
+                }
+                s_file.SetLength(constructedString.Length);
+                s_file.Position = 0;
+                byte[] bytesToWrite = System.Text.Encoding.ASCII.GetBytes(constructedString);
+                s_file.Write(bytesToWrite, 0, bytesToWrite.Length);
+                s_file.Flush();
             }
-            s_file.SetLength(constructedString.Length);
-            s_file.Position = 0;
-            byte[] bytesToWrite = System.Text.Encoding.ASCII.GetBytes(constructedString);
-            s_file.Write(bytesToWrite, 0, bytesToWrite.Length);
-            s_file.Flush();
+
         }
     }
     #endregion

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Net.Sockets;
+using System.Collections.Generic;
 using smgiFuncs;
 
 namespace osu_Twitch_Relay_Server
@@ -130,9 +131,20 @@ namespace osu_Twitch_Relay_Server
                                     foreach (string k in GlobalVars.settings.GetKeys().Where(k => k.Contains("AuthUser")))
                                     {
                                         sString k1 = GlobalVars.settings.GetSetting(k);
+                                        k1 = k1.SubString(0, k1.LastIndexOf(",") + 1);
                                         if (Equals(k1, state.receivedstr))
                                         {
                                             GlobalVars.settings.DeleteSetting(k);
+                                            //Reset setting count
+                                            List<string> newSettings = GlobalVars.settings.GetKeys().Where(setting => setting.Contains("AuthUser")).Select(setting => GlobalVars.settings.GetSetting(setting)).ToList();
+                                            foreach (string setting in GlobalVars.settings.GetKeys())
+                                            {
+                                                GlobalVars.settings.DeleteSetting(setting);
+                                            }
+                                            for (int settingCounter = 0; settingCounter < newSettings.Count; settingCounter++)
+                                            {
+                                                GlobalVars.settings.AddSetting("AuthUser" + settingCounter, newSettings[settingCounter]);
+                                            }
                                             GlobalVars.settings.Save();
                                             while (GlobalVars.oUsers.TryRemove(k1, out trashb) == false) ;
                                             while (GlobalVars.tUsers.TryRemove(k1, out trashs) == false) ;
@@ -151,41 +163,38 @@ namespace osu_Twitch_Relay_Server
                                 msg = line.SubString(line.nthDexOf(":", 1) + 1);
                                 if (!String.Equals(user, channel, StringComparison.CurrentCultureIgnoreCase))
                                 {
-                                    foreach (sString k in GlobalVars.oUsers.Keys.ToArray())
+                                    foreach (var k in GlobalVars.oUsers.Where(k => k.Value && String.Equals(k.Key.SubString(k.Key.nthDexOf(",", 0) + 1, k.Key.nthDexOf(",", 1)), channel, StringComparison.CurrentCultureIgnoreCase)))
                                     {
-                                        if ((GlobalVars.oUsers[k]) && (String.Equals(k.SubString(k.nthDexOf(",", 0) + 1, k.nthDexOf(",", 1)), channel, StringComparison.CurrentCultureIgnoreCase)))
+                                        string processedMsg = "";
+                                        string[] splitmsg = Regex.Split(msg, " ");
+                                        foreach (string s in splitmsg.ToArray())
                                         {
-                                            string processedMsg = "";
-                                            string[] splitmsg = Regex.Split(msg, " ");
-                                            foreach (string s in splitmsg.ToArray())
+                                            var regstr = Regex.Match(s, "http://osu.ppy.sh/b/([0-9]{1,})+");
+                                            if (regstr.Success)
                                             {
-                                                var regstr = Regex.Match(s, "http://osu.ppy.sh/b/([0-9]{1,})+");
-                                                if (regstr.Success)
+                                                BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&b=" + regstr.Groups[1].Value);
+                                                if (btmp.Length != 0)
                                                 {
-                                                    BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&b=" + regstr.Groups[1].Value);
-                                                    if (btmp.Length != 0)
-                                                    {
-                                                        processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
-                                                    }
-                                                    else { processedMsg += s + " "; }
-                                                    continue;
+                                                    processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
                                                 }
-                                                regstr = Regex.Match(s, "http://osu.ppy.sh/s/([0-9]{1,})+");
-                                                if (regstr.Success)
-                                                {
-                                                    BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&s=" + regstr.Groups[1].Value);
-                                                    if (btmp.Length != 0)
-                                                    {
-                                                        processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
-                                                    }
-                                                    else { processedMsg += s + " "; }
-                                                    continue;
-                                                }
-                                                processedMsg += s + " ";
+                                                else { processedMsg += s + " "; }
+                                                continue;
                                             }
-                                            msg = "PRIVMSG " + k.SubString(0, k.nthDexOf(",", 0)) + " :" + user + ": " + processedMsg.Substring(0, processedMsg.LastIndexOf(" ", StringComparison.Ordinal)) + "\n";
-                                            GlobalCalls.AddToQueue(msg);
+                                            regstr = Regex.Match(s, "http://osu.ppy.sh/s/([0-9]{1,})+");
+                                            if (regstr.Success)
+                                            {
+                                                BeatmapInfo[] btmp = GlobalCalls.ParseOsuData<BeatmapInfo[]>("http://osu.ppy.sh/api/get_beatmaps?k=" + GlobalVars.apiKey + "&s=" + regstr.Groups[1].Value);
+                                                if (btmp.Length != 0)
+                                                {
+                                                    processedMsg += "(" + btmp[0].artist + " - " + btmp[0].title + ")[" + s + "] ";
+                                                }
+                                                else { processedMsg += s + " "; }
+                                                continue;
+                                            }
+                                            processedMsg += s + " ";
                                         }
+                                        msg = "PRIVMSG " + k.Key.SubString(0, k.Key.nthDexOf(",", 0)) + " :" + user + ": " + processedMsg.Substring(0, processedMsg.LastIndexOf(" ", StringComparison.Ordinal)) + "\n";
+                                        GlobalCalls.AddToQueue(msg);
                                     }
                                 }
                                 break;
@@ -202,7 +211,7 @@ namespace osu_Twitch_Relay_Server
 
         public static void tPing(object state)
         {
-            do
+            while (true)
             {
                 System.Threading.Thread.Sleep(40000);
                 if (GlobalCalls.WriteToSocket(((GlobalVars.tState)state).client, Encoding.ASCII.GetBytes("PING\r\n")) == false)
@@ -216,7 +225,7 @@ namespace osu_Twitch_Relay_Server
                     System.Threading.Thread.Sleep(1000);
                     break;
                 }
-            } while (true);
+            }
             tConn((GlobalVars.tState)state, true, true);
         }
     }

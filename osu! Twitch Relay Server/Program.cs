@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Net.Mail;
 using smgiFuncs;
@@ -34,7 +34,10 @@ namespace osu_Twitch_Relay_Server
             {
                 GlobalVars.tState twitchState = new GlobalVars.tState();
                 twitchState.receivedstr = GlobalVars.settings.GetSetting(k);
-                tServ.tConn(twitchState, false, true);
+                bool prevAuthed = Convert.ToBoolean(Convert.ToInt16(twitchState.receivedstr.SubString(twitchState.receivedstr.LastIndexOf(",") + 1)));
+                twitchState.receivedstr = twitchState.receivedstr.SubString(0, twitchState.receivedstr.LastIndexOf(",") + 1);
+
+                tServ.tConn(twitchState, false, prevAuthed);
             }
 
             while (true) {
@@ -53,7 +56,7 @@ namespace osu_Twitch_Relay_Server
                 SmtpClient client = new SmtpClient("smtp.gmail.com", 587);
                 client.EnableSsl = true;
                 client.Credentials = new NetworkCredential(GlobalVars.email_Email, GlobalVars.email_Pass);
-                client.Send(GlobalVars.email_Email, "@gmail.com", "Crash on " + DateTime.Now, e.ExceptionObject.ToString());
+                client.Send(GlobalVars.email_Email, GlobalVars.email_Target, "Crash on " + DateTime.Now, e.ExceptionObject.ToString());
             }
             catch { }
 
